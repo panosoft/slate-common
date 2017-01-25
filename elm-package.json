@@ -1,0 +1,25 @@
+{
+    "version": "1.0.0",
+    "summary": "Common Slate modules",
+    "repository": "https://github.com/panosoft/slate-common.git",
+    "license": "Unlicense",
+    "source-directories": [
+        "src"
+    ],
+    "exposed-modules": [
+        "Slate.Common.EntityUtils",
+        "Slate.Common.Event",
+        "Slate.Common.Mutation",
+        "Slate.Common.Projection",
+        "Slate.Common.Reference",
+        "Slate.Common.Schema"
+    ],
+    "dependencies": {
+        "elm-lang/core": "4.0.5 <= v < 5.0.0",
+        "elm-community/json-extra": "1.0.0 <= v < 2.0.0",
+        "elm-community/maybe-extra": "1.1.0 <= v < 2.0.0",
+        "elm-community/result-extra": "1.0.0 <= v < 2.0.0",
+        "panosoft/elm-utils": "1.1.0 <= v < 2.0.0"
+    },
+    "elm-version": "0.17.1 <= v < 0.18.0"
+}
