@@ -6,6 +6,8 @@ module Slate.Common.Mutation
         , CascadingDelete
         , buildCascadingDelete
         , buildCascadingDeleteMsg
+        , processMutationResult
+        , processCascadingMutationResult
         , getConvertedValue
         , getIntValue
         , getFloatValue
@@ -25,7 +27,7 @@ module Slate.Common.Mutation
 
     This module contains helpers for projection processing.
 
-@docs MutationTagger, CascadingDeletionErrorTagger, CascadingDeletionTaggers, CascadingDelete, buildCascadingDelete, buildCascadingDeleteMsg, getConvertedValue, getIntValue, getFloatValue, getDateValue, getStringValue, getReference, updatePropertyValue, updatePropertyReference, updatePropertyList, positionPropertyList, appendPropertyList, setPropertyList
+@docs MutationTagger, CascadingDeletionErrorTagger, CascadingDeletionTaggers, CascadingDelete, buildCascadingDelete, buildCascadingDeleteMsg, processMutationResult, processCascadingMutationResult, getConvertedValue, getIntValue, getFloatValue, getDateValue, getStringValue, getReference, updatePropertyValue, updatePropertyReference, updatePropertyList, positionPropertyList, appendPropertyList, setPropertyList
 
 -}
 
@@ -128,6 +130,44 @@ buildCascadingDeleteMsg originatingEventRecord deletionTaggers errorTagger casca
                         ?= (Just <| errorTagger cascadingDelete.type_ "Cannot determine Cascading Deletion Msg since deleteingTaggers doesn't support specified type.")
                 )
             ?= Nothing
+
+
+{-|
+    Helper for processing a non-cascading delete Mutation result from an Entity's handleMutation function that returns:
+        Result String (Dict EntityReference entity)
+-}
+processMutationResult : model -> (model -> Dict EntityReference entity -> model) -> (model -> (String -> ( model, Cmd msg ))) -> Result String (Dict EntityReference entity) -> ( model, Cmd msg )
+processMutationResult model modelMutator errorHandler result =
+    result
+        |??> (\newDict -> modelMutator model newDict ! [])
+        ??= errorHandler model
+
+
+{-|
+    Helper for processing a Cascading Delete Mutation result from an Entity's handleMutation function that returns:
+        ( Result String (Dict EntityReference entity), Maybe CascadingDelete )
+-}
+processCascadingMutationResult : model -> CascadingDeletionTaggers msg -> CascadingDeletionErrorTagger msg -> (msg -> model -> ( model, Cmd msg )) -> EventRecord -> (model -> Dict EntityReference entity -> model) -> (model -> (String -> ( model, Cmd msg ))) -> ( Result String (Dict EntityReference entity), Maybe CascadingDelete ) -> ( model, Cmd msg )
+processCascadingMutationResult model deleteTaggers errorTagger update eventRecord modelMutator errorHandler ( mutationResult, maybeDelete ) =
+    mutationResult
+        |??>
+            (\newDict ->
+                let
+                    newModel =
+                        modelMutator model newDict
+
+                    ( finalModel, cmd ) =
+                        maybeDelete
+                            |?> (\delete ->
+                                    buildCascadingDeleteMsg eventRecord deleteTaggers errorTagger delete
+                                        |?> (\msg -> update msg newModel)
+                                        ?= (model ! [])
+                                )
+                            ?= (newModel ! [])
+                in
+                    newModel ! [ cmd ]
+            )
+        ??= errorHandler model
 
 
 
