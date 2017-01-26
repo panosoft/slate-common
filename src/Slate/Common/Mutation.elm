@@ -4,10 +4,10 @@ module Slate.Common.Mutation
         , CascadingDeletionErrorTagger
         , CascadingDeletionTaggers
         , CascadingDelete
-        , buildCascadingDelete
         , buildCascadingDeleteMsg
         , processMutationResult
         , processCascadingMutationResult
+        , buildCascadingDelete
         , getConvertedValue
         , getIntValue
         , getFloatValue
@@ -18,8 +18,6 @@ module Slate.Common.Mutation
         , updatePropertyReference
         , updatePropertyList
         , positionPropertyList
-        , appendPropertyList
-        , setPropertyList
         )
 
 {-|
@@ -27,7 +25,7 @@ module Slate.Common.Mutation
 
     This module contains helpers for projection processing.
 
-@docs MutationTagger, CascadingDeletionErrorTagger, CascadingDeletionTaggers, CascadingDelete, buildCascadingDelete, buildCascadingDeleteMsg, processMutationResult, processCascadingMutationResult, getConvertedValue, getIntValue, getFloatValue, getDateValue, getStringValue, getReference, updatePropertyValue, updatePropertyReference, updatePropertyList, positionPropertyList, appendPropertyList, setPropertyList
+@docs MutationTagger, CascadingDeletionErrorTagger, CascadingDeletionTaggers, CascadingDelete, buildCascadingDeleteMsg, processMutationResult, processCascadingMutationResult, buildCascadingDelete, getConvertedValue, getIntValue, getFloatValue, getDateValue, getStringValue, getReference, updatePropertyValue, updatePropertyReference, updatePropertyList, positionPropertyList
 
 -}
 
@@ -35,11 +33,11 @@ import String exposing (..)
 import Date exposing (..)
 import Dict exposing (Dict)
 import Maybe.Extra as MaybeE exposing (isNothing)
-import Slate.Common.Reference exposing (..)
+import Slate.Common.Entity exposing (..)
 import Slate.Common.Event exposing (..)
 import Slate.Common.Schema exposing (..)
 import Utils.Ops exposing (..)
-import Slate.Common.Event exposing (EventRecord, EventData(..), MutatingEventData)
+import Slate.Common.Event exposing (..)
 
 
 {-|
@@ -73,24 +71,10 @@ type alias CascadingDelete =
     }
 
 
-{-|
-    Build cascading delete structure.
--}
-buildCascadingDelete : String -> String -> String -> Maybe String -> List PropertySchema -> Maybe CascadingDelete
-buildCascadingDelete type_ deleteEventName eventName referenceId propertiesSchemas =
-    let
-        eventNames =
-            propertiesSchemas
-                |> List.filter .owned
-                |> List.map .eventNames
-                |> List.concat
-    in
-        case List.member eventName eventNames of
-            True ->
-                Just <| CascadingDelete type_ deleteEventName referenceId
 
-            False ->
-                Nothing
+----------------------------------------------------------
+-- Event Procesing Helpers
+----------------------------------------------------------
 
 
 {-|
@@ -108,7 +92,7 @@ buildCascadingDeleteMsg originatingEventRecord deletionTaggers errorTagger casca
                     mutatingEventData
 
                 NonMutating nonMutatingEventData ->
-                    Debug.crash "BUG -- Should never have gotten here"
+                    Debug.crash "BUG -- Non-mutating events cannot create cascading deletes"
     in
         cascadingDelete.entityId
             |?> (\entityId ->
@@ -134,9 +118,9 @@ buildCascadingDeleteMsg originatingEventRecord deletionTaggers errorTagger casca
 
 {-|
     Helper for processing a non-cascading delete Mutation result from an Entity's handleMutation function that returns:
-        Result String (Dict EntityReference entity)
+        Result String (EntityDict entity)
 -}
-processMutationResult : model -> (model -> Dict EntityReference entity -> model) -> (model -> (String -> ( model, Cmd msg ))) -> Result String (Dict EntityReference entity) -> ( model, Cmd msg )
+processMutationResult : model -> (model -> EntityDict entity -> model) -> (model -> (String -> ( model, Cmd msg ))) -> Result String (EntityDict entity) -> ( model, Cmd msg )
 processMutationResult model modelMutator errorHandler result =
     result
         |??> (\newDict -> modelMutator model newDict ! [])
@@ -145,9 +129,9 @@ processMutationResult model modelMutator errorHandler result =
 
 {-|
     Helper for processing a Cascading Delete Mutation result from an Entity's handleMutation function that returns:
-        ( Result String (Dict EntityReference entity), Maybe CascadingDelete )
+        ( Result String (EntityDict entity), Maybe CascadingDelete )
 -}
-processCascadingMutationResult : model -> CascadingDeletionTaggers msg -> CascadingDeletionErrorTagger msg -> (msg -> model -> ( model, Cmd msg )) -> EventRecord -> (model -> Dict EntityReference entity -> model) -> (model -> (String -> ( model, Cmd msg ))) -> ( Result String (Dict EntityReference entity), Maybe CascadingDelete ) -> ( model, Cmd msg )
+processCascadingMutationResult : model -> CascadingDeletionTaggers msg -> CascadingDeletionErrorTagger msg -> (msg -> model -> ( model, Cmd msg )) -> EventRecord -> (model -> EntityDict entity -> model) -> (model -> (String -> ( model, Cmd msg ))) -> ( Result String (EntityDict entity), Maybe CascadingDelete ) -> ( model, Cmd msg )
 processCascadingMutationResult model deleteTaggers errorTagger update eventRecord modelMutator errorHandler ( mutationResult, maybeDelete ) =
     mutationResult
         |??>
@@ -171,11 +155,33 @@ processCascadingMutationResult model deleteTaggers errorTagger update eventRecor
 
 
 
--- Getters from Event Data
+----------------------------------------------------------
+-- Entity Mutation Helpers
+----------------------------------------------------------
 
 
 {-|
-    Convert value from event.
+    Build cascading delete structure based on the `owned` field of the property schema.
+-}
+buildCascadingDelete : String -> String -> String -> Maybe String -> List PropertySchema -> Maybe CascadingDelete
+buildCascadingDelete type_ deleteEventName eventName referenceId propertiesSchemas =
+    let
+        eventNames =
+            propertiesSchemas
+                |> List.filter .owned
+                |> List.map .eventNames
+                |> List.concat
+    in
+        case List.member eventName eventNames of
+            True ->
+                Just <| CascadingDelete type_ deleteEventName referenceId
+
+            False ->
+                Nothing
+
+
+{-|
+    Convert value from event with specified function.
 -}
 getConvertedValue : (String -> Result String value) -> Event -> Result String value
 getConvertedValue convert event =
@@ -201,7 +207,7 @@ getConvertedValue convert event =
 
 
 {-|
-   Get Int value from event
+   Get Int value from event.
 -}
 getIntValue : Event -> Result String Int
 getIntValue event =
@@ -275,52 +281,58 @@ checkReferenceExists =
 
 
 {-|
-    Update entity property value.
+    Update Entire Entity property value.
 -}
-updatePropertyValue : (Event -> Result String value) -> (Maybe value -> entity -> entity) -> Event -> entity -> Result String entity
-updatePropertyValue get update event entity =
+updatePropertyValue : (Event -> Result String value) -> (Maybe value -> entireEntity -> entireEntity) -> Event -> entireEntity -> Result String entireEntity
+updatePropertyValue getter updater event entireEntity =
     let
         value =
-            get event
+            getter event
     in
         case value of
             Ok val ->
-                Ok (update (Just val) entity)
+                Ok (updater (Just val) entireEntity)
 
             Err msg ->
                 Err msg
 
 
 {-|
-    Update entity property reference.
+    Update Entire Entity property reference.
 -}
-updatePropertyReference : (Maybe EntityReference -> entity -> entity) -> Event -> entity -> Result String entity
+updatePropertyReference : (Maybe EntityReference -> entireEntity -> entireEntity) -> Event -> entireEntity -> Result String entireEntity
 updatePropertyReference =
     updatePropertyValue getReference
 
 
 {-|
-    Update entity property list by appending (positioning is done by another event).
+    Update Entire Entity property list. Typically this is done by appending since positioning is done by another event.
 -}
-updatePropertyList : (Event -> Result String listValue) -> (listValue -> entity -> entity) -> Event -> entity -> Result String entity
-updatePropertyList get update event entity =
+updatePropertyList : (Event -> Result String listValue) -> (listValue -> entireEntity -> entireEntity) -> Event -> entireEntity -> Result String entireEntity
+updatePropertyList getter updater event entireEntity =
     let
         listValue =
-            get event
+            getter event
     in
         case listValue of
             Ok listVal ->
-                Ok (update listVal entity)
+                Ok (updater listVal entireEntity)
 
             Err msg ->
                 Err msg
 
 
 {-|
-    Position entity property list.
+    Position Entire Entity property list where the property at `event.data.oldPosition` is FIRST removed and then inserted to `event.data.newPosition`, e.g.:
+
+    	A B [C] D E F G
+    	oldPosition = 2
+    	A B D E F G
+    	newPosition = 3
+    	A B D [C] E F G
 -}
-positionPropertyList : Maybe (List value) -> (Maybe (List value) -> entity -> entity) -> Event -> entity -> Result String entity
-positionPropertyList maybeList update event entity =
+positionPropertyList : Maybe (List value) -> (Maybe (List value) -> entireEntity -> entireEntity) -> Event -> entireEntity -> Result String entireEntity
+positionPropertyList maybeList updater event entireEntity =
     case event.data of
         Mutating mutatingEventData ->
             let
@@ -335,7 +347,7 @@ positionPropertyList maybeList update event entity =
                         |> List.append (invalidMove ? ( [ "Positions are out of bounds" ++ (toString event) ], [] ))
 
                 ( oldPosition, newPosition ) =
-                    ( mutatingEventData.oldPosition ?= 0, mutatingEventData.newPosition ?= 0 )
+                    ( mutatingEventData.oldPosition ?= -1, mutatingEventData.newPosition ?= -1 )
 
                 length =
                     List.length list
@@ -352,34 +364,10 @@ positionPropertyList maybeList update event entity =
                             inserted =
                                 List.append (List.take oldPosition list) (List.append item <| List.drop oldPosition list)
                         in
-                            Ok <| update (Just inserted) entity
+                            Ok <| updater (Just inserted) entireEntity
 
                     False ->
                         Err <| String.join "\n" errors
 
         NonMutating _ ->
             Err "Non-mutating events don't have properties"
-
-
-
--- 1 2 [3] 4 5 6 7
--- old = 2
--- 1 2 4 5 6 7
--- new = 3
--- 1 2 4 [3] 5 6 7
-
-
-{-|
-    Append to a property list.
--}
-appendPropertyList : Maybe (List listValue) -> listValue -> Maybe (List listValue)
-appendPropertyList list value =
-    Just <| List.append (list ?= []) [ value ]
-
-
-{-|
-    Append to a property list.
--}
-setPropertyList : Maybe (List listValue) -> listValue -> Maybe (List listValue)
-setPropertyList list value =
-    Just [ value ]

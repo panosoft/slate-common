@@ -1,7 +1,6 @@
 module Slate.Common.Reference
     exposing
-        ( EntityReference
-        , lookupEntity
+        ( lookupEntity
         , dereferenceEntity
         , entityReferenceEncode
         , entityReferenceDecoder
@@ -12,27 +11,21 @@ module Slate.Common.Reference
 
     Slate relationships are stored internally as References.
 
-@docs EntityReference , lookupEntity , dereferenceEntity , entityReferenceEncode , entityReferenceDecoder
+@docs lookupEntity , dereferenceEntity , entityReferenceEncode , entityReferenceDecoder
 -}
 
 import Dict exposing (Dict)
 import Json.Encode as JE exposing (..)
 import Json.Decode as JD exposing (..)
+import Slate.Common.Entity exposing (..)
 import Slate.Common.Event exposing (..)
 import Utils.Ops exposing ((?=))
 
 
 {-|
-    EntityReference type.
--}
-type alias EntityReference =
-    String
-
-
-{-|
     Lookup an event's referenced entity in an entity dictionary.
 -}
-lookupEntity : Dict EntityReference entity -> Event -> entity -> entity
+lookupEntity : EntityDict entity -> Event -> entity -> entity
 lookupEntity entities event default =
     case event.data of
         Mutating mutatingEventData ->
@@ -45,7 +38,7 @@ lookupEntity entities event default =
 {-|
     Lookup an referenced entity in an entity dictionary.
 -}
-dereferenceEntity : Dict EntityReference entity -> Maybe EntityReference -> entity -> entity
+dereferenceEntity : EntityDict entity -> Maybe EntityReference -> entity -> entity
 dereferenceEntity entities ref default =
     Dict.get (ref ?= "") entities ?= default
 

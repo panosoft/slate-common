@@ -1,6 +1,8 @@
 module Slate.Common.Projection
     exposing
         ( ProjectionErrors
+        , DictProjectionErrors
+        , getValidEntity
         , projectMap
         , successfulProjections
         , failedProjections
@@ -12,26 +14,48 @@ module Slate.Common.Projection
 
     This module contains helpers for projection processing.
 
-@docs  ProjectionErrors, projectMap , successfulProjections , failedProjections , allFailedProjections
+@docs  ProjectionErrors, DictProjectionErrors, getValidEntity, projectMap, successfulProjections, failedProjections, allFailedProjections
 -}
 
 import Dict exposing (Dict)
 import Result.Extra as ResultE exposing (isOk)
+import Utils.Ops exposing (..)
 import Utils.Dict as DictU
 import Utils.Result as ResultU
 
 
 {-|
-    Projection errors.
+    Projection error messages.
 -}
-type alias ProjectionErrors x =
-    List (List x)
+type alias ProjectionErrors =
+    List String
 
 
 {-|
-    Map function for projections.
+    Projection errors for a dictionary or entities.
 -}
-projectMap : (a -> b) -> (Dict comparable a -> Dict comparable b)
+type alias DictProjectionErrors =
+    List (List String)
+
+
+{-|
+    Get a valid entity or errors depending on the supplied errorChecks.
+-}
+getValidEntity : List ( Bool, String ) -> entity -> Result (ProjectionErrors) entity
+getValidEntity errorChecks entity =
+    let
+        errors =
+            errorChecks
+                |> List.filter fst
+                |> List.map snd
+    in
+        (errors == []) ? ( Ok entity, Err errors )
+
+
+{-|
+    Creates a Dictionary map function for projections from a simple projection function.
+-}
+projectMap : (entireEntity -> partialEntity) -> (Dict comparable entireEntity -> Dict comparable partialEntity)
 projectMap f =
     Dict.map (\_ value -> f value)
 
@@ -39,7 +63,7 @@ projectMap f =
 {-|
     Filter successful projections.
 -}
-successfulProjections : Dict comparable (Result (List x) a) -> Dict comparable a
+successfulProjections : Dict comparable (Result (ProjectionErrors) a) -> Dict comparable a
 successfulProjections dictResult =
     let
         okDict =
@@ -52,7 +76,7 @@ successfulProjections dictResult =
 {-|
     Filter failed projections.
 -}
-failedProjections : Dict comparable (Result (List x) b) -> ProjectionErrors x
+failedProjections : Dict comparable (Result (ProjectionErrors) b) -> DictProjectionErrors
 failedProjections =
     ResultU.filterErr << Dict.values
 
@@ -60,6 +84,6 @@ failedProjections =
 {-|
     Filter all failed projections from a list of projection results.
 -}
-allFailedProjections : List (ProjectionErrors x) -> List x
+allFailedProjections : List (DictProjectionErrors) -> ProjectionErrors
 allFailedProjections =
     List.concat << (List.map List.concat)
