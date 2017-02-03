@@ -9,15 +9,44 @@
 Since the Elm Package Manager doesn't allow for Native code and most everything we write at Panoramic Software has some native code in it,
 you have to install this library directly from GitHub, e.g. via [elm-github-install](https://github.com/gdotdesign/elm-github-install) or some equivalent mechanism. It's just not worth the hassle of putting libraries into the Elm package manager until it allows native code.
 
+## Example code
+
+Many of the examples shown in the documentation uses infix operators from [elm-utils](https://github.com/panosoft/elm-utils#operators).
+
 ## Slate.Common.Entity
 
-`Event Processing` involves mutation of `Entire Entities` in `Entity Dictionaries` keyed on `EntityReferences`. Once the Event Processing is complete, projection from `Entire Entities` to `Partial Entities` can be done into their own `Entity Dictionaries`. Then these dictionaries can be used to build `Entity` relationships.
+An `Entity` is similar to an Elm record or a Javascript Object without all the baggage. Entities have `Properties` which have values.
+
+There are 2 versions of every `Entity` in Slate. The `Entire Entity` and the `Partial Entity`.
+
+An `Entire Entity` is a record where every field is a `Maybe`, (except Lists since they can be empty) e.g.:
+
+```elm
+type alias EntirePerson =
+    { name : Maybe Name
+    , age : Maybe Int
+    , address : Maybe EntityReference
+    }
+```
+
+This is typically defined in the `Entity's` module.
+
+A `Partial Entity` is the concrete subset of the `Entire Entity` that contains only the things of interest, e.g. a possible partial for the canonical entire might be:
+
+```elm
+type alias Person =
+    { name : PersonEntity.Name
+    , address : Address
+    }
+```
+
+Notice that `Maybe's` are no longer needed since all of the `Partial Entity's` fields are expected to exist.
 
 The following are helpful definitions.
 
 ### EntityReference
 
-A reference to an Entity which is actually just the Entity's Id or GUID.
+A reference to an Entity which is actually just the Entity's Id.
 
 ```elm
 type alias EntityReference =
@@ -39,7 +68,7 @@ Since `Slate` is an Event Sourced DB, it stores `Events`.
 
 ### Event Record
 
-A Slate `EventRecord` represents the `Query Result` of a `SQL Query` on the `events` table in the Slate Database:
+A Slate `EventRecord` represents a single row of a `Query Result` from `SQL Query` on the `events` table in the Slate Database:
 
 ```elm
 type alias EventRecord =
@@ -67,7 +96,7 @@ type alias Event =
     }
 ```
 * `name` - The name of the event. These are found in the `Entities Schema` for `Mutating Events`.
-* `version` - Thhe version of the `Event` used to aid in `Entity Schema Migration`.
+* `version` - The OPTIONAL version of the `Event` used to aid in `Entity Schema Migration`.
 * `data` - The data that's specific to the `Event` (see [EventData](#eventdata))
 
 ### EventData
@@ -76,7 +105,7 @@ It is worth noting that there are 2 types of Events in Slate, `Mutating Events` 
 
 `Mutating Events` are events that mutate `Entities`.
 
-`Non-mutating Events` are noteworthy events where a user performs an operation worth noting, e.g. for security reasons.
+`Non-mutating Events` are events where a user performs an operation worth noting, e.g. for security reasons.
 
 They only differ in the `EventData`.
 
@@ -88,7 +117,7 @@ type EventData
 
 `MutatingEventData` supports `Entities` with `Properties`. Each `Property` can be a primitive type, a `Value Object` or a list of either.
 
-A `Value Object` is a JSON string and is atomic, i.e. the whole object is mutated per event.
+A `Value Object` is a JSON string and is atomic, i.e. the whole object is mutated by a SINGLE event. In contrast, parts of an `Entity` can be mutated independently.
 
 `Entities` can have relationships with other `Entities` via `References`.
 
@@ -104,13 +133,17 @@ type alias MutatingEventData =
 ```
 
 * `entityId` - The globally unique id for the entityId
-* `value` - An optional value as a String. If this event involves adding or changing a property's value that's a `Value Object`, then this is a JSON string
+* `value` - An OPTIONAL String value. If this event involves adding or changing a property's value that's a `Value Object`, then this is a JSON string.
 * `referenceId` - If the event involves a relationship between this `Entity` and another, then this is the globally unique id of the other `Entity`.
 * `propertyId` - The id of a list property.
-* `oldPosition` - The Old Position of a property in a list in an event that is reordering a list of `Properties`.
-* `newPosition` - The New Position of a property in a list in an event that is reordering a list of `Properties`.
+* `oldPosition` - The Old Position of a property within a list for events that reorder a list of `Properties`.
+* `newPosition` - The New Position of a property within a list for events that reorder a list of `Properties`.
 
-`NonMutatingEventData` is a simple event with an optional JSON `value`. This allows for future flexibility of the structure.
+`NonMutatingEventData` is a simple event with an optional JSON String `value` allowing for future flexibility of the structure. They do not relate to `Entities` like `Mutating Events` do.
+
+And therefore, these types of `Events` will not be queried using [slate-query-engine](https://github.com/panosoft/slate-query-engine).
+
+They merely provide information about Operational Events.
 
 ```elm
 type alias NonMutatingEventData =
@@ -118,7 +151,7 @@ type alias NonMutatingEventData =
     }
 ```
 
-* `value` - An optional JSON string with parameters for the `Event`.
+* `value` - An optional JSON String.
 
 ### Metadata
 
@@ -136,11 +169,11 @@ type alias Metadata =
 
 ## Slate.Common.Schema
 
-Slate `Schemas` define `Entity` events and properties with their events.
+Slate `Schemas` define `Entities` and their `Properties`.
 
 ### EntitySchema
 
-An `Entity` has an `EntitySchema` that contains information about the `Events` that affect the life cycle of the `Entity`. It also contains the `Schemas` for its `Properties`.
+An `Entity` has an `EntitySchema` that contains information about the `Events` that affect the life-cycle of the `Entity`. It also contains the `Schemas` for its `Properties`.
 
 ```elm
 type alias EntitySchema =
@@ -158,6 +191,8 @@ type alias EntitySchema =
 
 A `Property` of an `Entity` has its own `Schema`. A `Property` can be a primitive value, a `Value Object` or a list of either. It can also be another `Entity` to represent relationships.
 
+It contains information about the `Events` that affect the life-cycle of the `Property`.
+
 There are 2 types of relationships, `Ownership` and `Non-ownership`.
 
 ```elm
@@ -170,7 +205,7 @@ type alias PropertySchema =
 ```
 
 * `name` - `Property` name.
-* `entitySchema` - An optional `Reference` to another `EntitySchema`.
+* `entitySchema` - An OPTIONAL `Reference` to another `EntitySchema`.
 * `eventNames` - Names of events that affect the life-cylce of this `Entity`.
 * `owned` - Flag to denote ownership (must be `True` to support Cascading Deletes in the `Query Engine`, [slate-query-engine](https://github.com/panosoft/slate-query-engine))
 
@@ -199,11 +234,21 @@ mtPropSchema =
 
 This module contains many helpers for doing mutations. There are 2 types of helpers. Ones that aid in the writing of Entity mutations and ones that are used during Event Processing.
 
-### Event Processing
+### Entity Dictionary Mutation
+
+`Event Processing` is the process of reading events from the Slate database and creating or destroying `Entities` or mutating existing ones.
+
+During the `Entity Dictionary Mutation`, a single `Entity` will be mutated. If an `Entity` has been created, it will be inserted into the `Entity Dictionary`. If an `Entity` has been destroyed it will be removed from the `Entity Dictionary`. If an `Entity` has been mutated then `Entity` will be replaced with the mutated one.
+
+The following functions reduce the code necessary to process these `Entity` events to build an `Entire Entity`.
+
+Most `Entity Dictionary Mutation` code will be written using either `processMutationResult` or `processCascadingMutationResult` where `processMutationResult` will be used 95% of the time.
+
+For details on `Entity Mutation` see [Entity Mutation](#entity-mutation).
 
 #### buildCascadingDeleteMsg
 
-Build projection Msg for cascading deletion.
+Build projection Msg for cascading deletion. This is usually not called directly by code that uses [slate-query-engine](https://github.com/panosoft/slate-query-engine). It is part of the API for code that processes events without it.
 
 ```elm
 buildCascadingDeleteMsg : EventRecord -> CascadingDeletionTaggers msg -> CascadingDeletionErrorTagger msg -> CascadingDelete -> Maybe msg
@@ -227,18 +272,33 @@ processMutationResult : model -> (model -> EntityDict entity -> model) -> (model
 processMutationResult model modelMutator errorHandler result
 ```
 
+This function should be used to process `Entity` events for `Entities` that do NOT own other `Entities` because this function does NOT support cascading deletes (see [processCascadingMutationResult](#processCascadingMutationResult)).
+
 __Usage__
 
 ```elm
+import Slate.Common.Mutation as Mutation
+
 mutationError : String -> Model -> (String -> ( Model, Cmd Msg ))
 mutationError type_ model =
     (\err -> update (MutationError type_ err) model)
 
-processMutation
-	(\model newDict -> { model | entireAddresses = newDict })
-	(mutationError "Address")
-<|
-	AddressEntity.handleMutation model.entireAddresses eventRecord.event
+update : Msg -> Model -> ( Model, Cmd Msg )
+update msg model =
+    let
+        updateEngine : Engine.Msg -> Model -> ( Model, Cmd Msg )
+        updateEngine =
+            ParentChildUpdate.updateChildApp (Engine.update engineConfig) update .engineModel SlateEngine (\model engineModel -> { model | engineModel = engineModel })
+
+        processMutationResult =
+            Mutation.processMutationResult model
+    in
+		case msg of
+			MutateAddress eventRecord ->
+				AddressEntity.handleMutation model.entireAddresses eventRecord.event
+					|> processMutationResult
+						(\model newDict -> { model | entireAddresses = newDict })
+						(mutationError "Address")
 ```
 
 #### processCascadingMutationResult
@@ -251,22 +311,102 @@ processCascadingMutationResult : model -> CascadingDeletionTaggers msg -> Cascad
 processCascadingMutationResult model deleteTaggers errorTagger update eventRecord modelMutator errorHandler ( mutationResult, maybeDelete )
 ```
 
+This function should be used to process `Entity` events for `Entities` that do own other `Entities`.
+
 __Usage__
 
 ```elm
+import Slate.Common.Mutation as Mutation exposing (CascadingDeletionTaggers)
+
 mutationError : String -> Model -> (String -> ( Model, Cmd Msg ))
 mutationError type_ model =
     (\err -> update (MutationError type_ err) model)
 
-processCascadingMutation
-	eventRecord
-	(\model newDict -> { model | entirePersons = newDict })
-	(mutationError "Person")
-<|
-	PersonEntity.handleMutation model.entirePersons model.entireAddresses eventRecord.event
+deleteTaggers : CascadingDeletionTaggers Msg
+deleteTaggers =
+    Dict.fromList [ ( "Address", MutateAddress ) ]
+
+update : Msg -> Model -> ( Model, Cmd Msg )
+update msg model =
+    let
+        updateEngine : Engine.Msg -> Model -> ( Model, Cmd Msg )
+        updateEngine =
+            ParentChildUpdate.updateChildApp (Engine.update engineConfig) update .engineModel SlateEngine (\model engineModel -> { model | engineModel = engineModel })
+
+        processCascadingMutationResult =
+            Mutation.processCascadingMutationResult model
+                deleteTaggers
+                MutationError
+                update
+    in
+		case msg of
+			MutatePerson eventRecord ->
+				PersonEntity.handleMutation model.entirePersons model.entireAddresses eventRecord.event
+					|> processCascadingMutationResult
+						eventRecord
+						(\model newDict -> { model | entirePersons = newDict })
+						(mutationError "Person")
 ```
 
+#### MutationTagger
+
+Mutation tagger.
+
+```elm
+type alias MutationTagger msg =
+    EventRecord -> msg
+```
+
+This is the definition of a tagger that will create a mutation Msg.
+
+#### CascadingDeletionErrorTagger
+
+Error tagger during building cascading deletion Msg.
+
+```elm
+type alias CascadingDeletionErrorTagger msg =
+    String -> String -> msg
+```
+
+#### CascadingDeletionTaggers
+
+Cascading deletion taggers.
+
+```elm
+type alias CascadingDeletionTaggers msg =
+    Dict String (MutationTagger msg)
+```
+
+A dictionary of `Entity Type` and the appropriate tagger for that type. This is used in Cascading Deletes. (see `deleteTaggers` in the Usage section of [processCascadingMutationResult](#processcascadingmutationresult)).
+
+#### CascadingDelete
+
+Cascading Delete definition.
+
+```elm
+type alias CascadingDelete =
+    { type_ : String
+    , eventName : String
+    , entityId : Maybe String
+    }
+```
+
+This defines a Cascading Delete that must be performed.
+
+* `type_` - This is the Entity type.
+* `eventName` - Event name to trigger the deletion, usually in the form "<entity-type> destroyed", e.g. "Address destroyed".
+* `entityId` - Specific entity to delete.
+
+
 ### Entity Mutation
+
+During `Event Processing`, each `Event` will mutate an `Entity`.
+
+Every `Entity's` implementation must support 2 functions, `handleMutation` and `mutate`. These functions will take a single `Event` and an `Entity` and mutate it.
+
+To see how these functions should be implemented see [slate-test-entities](https://github.com/panosoft/slate-test-entities), specifically `PersonEntity.elm` and `AddressEntity.elm`.
+
+The `mutate` function can leverage the following Mutation helper functions:
 
 #### buildCascadingDelete
 
@@ -276,6 +416,7 @@ Build cascading delete structure based on the `owned` field of the property sche
 buildCascadingDelete : String -> String -> String -> Maybe String -> List PropertySchema -> Maybe CascadingDelete
 buildCascadingDelete type_ deleteEventName eventName referenceId propertiesSchemas
 ```
+This is used within an Entity's standard `mutation` function (see [slate-test-entities](https://github.com/panosoft/slate-test-entities) implementation for the `Person Entity`).
 
 __Usage__
 
@@ -414,7 +555,7 @@ __Usage__
 
 See [slate-test-entities](https://github/panosoft/slate-test-entities) for usage in context.
 
-#### checkReferenceExists
+#### positionPropertyList
 
 Position Entire Entity property list where the property at `event.data.oldPosition` is FIRST removed and then inserted to `event.data.newPosition`, e.g.:
 
@@ -436,34 +577,11 @@ See [slate-test-entities](https://github/panosoft/slate-test-entities) for usage
 
 ## Slate.Common.Projection
 
-There are 2 versions of every `Entity` in Slate. The `Entire Entity` and the `Partial Entity`.
+Projection in Slate is the process of mapping from an `Entire Entity` to a `Partial Entity`.
 
-An `Entire Entity` is a record where every field is a `Maybe`, (except Lists) e.g.:
+During `Event` Processing, all `Events` mutate an `Entire Entity Dictionary` and when that process is complete, a projection from the `Entire Entity Dictionary` to a `Partial Entity Dictionary` can be performed.
 
-```elm
-type alias EntirePerson =
-    { name : Maybe Name
-    , age : Maybe Int
-    , address : Maybe EntityReference
-    }
-```
-
-This is typically defined in the `Entity's` module.
-
-A `Partial Entity` is the concrete subset of the `Entire Entity` that contains only the things of interest, e.g. a possible partial for the canonical entire might be:
-
-```elm
-type alias Person =
-    { name : PersonEntity.Name
-    , address : Address
-    }
-```
-
-Projection in Slate is the mapping from an `Entire Entity` to a `Partial Entity`.
-
-During `Event` Processing, all `Events` mutate an `Entire Entity` and when that process is complete, a projection from the `Entire Entity` to a `Partial Entity`.
-
-Since the `Query Engine` works with Dictionaries of Entities (as will most code that performs similar functions as the Engine), these helper functions work with Dictionaries
+Since the `Query Engine` was designed with `Entity Dictionaries` in mind (as will most code that performs similar functions as the Engine), these helper functions work with Dictionaries.
 
 #### getValidEntity
 
@@ -499,7 +617,7 @@ toAddress entireAddress =
 
 #### projectMap
 
-Creates a Dictionary map function for projections from a simple projection function.
+Creates a Dictionary map function for projections from an `Entity Projection` function.
 
 ```elm
 projectMap : (entireEntity -> partialEntity) -> (Dict comparable entireEntity -> Dict comparable partialEntity)
@@ -513,6 +631,7 @@ addresses : Model -> Dict String (Result (List String) Address)
 addresses model =
 	projectMap toAddress model.entireAddresses
 ```
+In this example, `toAddress` is the `Entity Projection` function. See [getValidEntity's Usage](#getvalidentity) for implementation of `toAddress`.
 
 #### successfulProjections
 
@@ -562,7 +681,7 @@ __Usage__
 ```elm
 addressProjectionErrors : DictProjectionErrors
 addressProjectionErrors =
-	ailedProjections addresses
+	failedProjections addresses
 ```
 
 #### allFailedProjections
@@ -584,6 +703,10 @@ allErrors =
 
 ## Slate.Common.Reference
 
+An `Entity Reference` is simply an `entityId`. This is used for the `key` in the `Entity Dictionaries`.
+
+The following are helper functions for dealing with references and their dictionaries.
+
 #### lookupEntity
 
 Lookup an event's referenced entity in an entity dictionary.
@@ -599,7 +722,7 @@ See [slate-test-entities](https://github/panosoft/slate-test-entities) for usage
 
 #### dereferenceEntity
 
-Lookup an referenced entity in an entity dictionary.
+Lookup an referenced entity in an `Entity Dictionary`.
 
 ```elm
 dereferenceEntity : EntityDict entity -> Maybe EntityReference -> entity -> entity
@@ -608,7 +731,7 @@ dereferenceEntity entities ref default
 
 #### entityReferenceEncode
 
-EntityReference Json encoder.
+EntityReference JSON encoder.
 
 ```elm
 entityReferenceEncode : EntityReference -> Json.Encode.Value
@@ -617,7 +740,7 @@ entityReferenceEncode
 
 #### entityReferenceDecoder
 
-EntityReference Json decoder.
+EntityReference JSON decoder.
 
 ```elm
 entityReferenceDecoder : Decoder EntityReference

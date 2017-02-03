@@ -62,7 +62,7 @@ type alias CascadingDeletionTaggers msg =
 
 
 {-|
-    Helper structure to communicated back from
+    Cascading Delete definition.
 -}
 type alias CascadingDelete =
     { type_ : String
