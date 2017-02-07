@@ -7,17 +7,19 @@ module Slate.Common.Event
         , NonMutatingEventData
         , Metadata
         , eventRecordDecoder
+        , encodeMutatingEvent
         )
 
 {-|
     Slate Event module
 
-@docs EventRecord , Event, EventData , MutatingEventData, NonMutatingEventData, Metadata , eventRecordDecoder
+@docs EventRecord , Event, EventData , MutatingEventData, NonMutatingEventData, Metadata , eventRecordDecoder, encodeMutatingEvent
 -}
 
-import Json.Decode as Json exposing (..)
-import Json.Decode.Extra exposing (..)
-import Utils.Json as JsonU exposing ((///), (<||))
+import Json.Encode as JE exposing (..)
+import Json.Decode as JD exposing (..)
+import Json.Decode.Extra as JDE exposing (..)
+import Utils.Json as JsonU exposing (..)
 import Date exposing (Date)
 
 
@@ -84,47 +86,85 @@ type alias Metadata =
 {-|
     Event Record decoder.
 -}
-eventRecordDecoder : Json.Decoder EventRecord
+eventRecordDecoder : JD.Decoder EventRecord
 eventRecordDecoder =
-    Json.succeed EventRecord
-        <|| ("id" := string)
-        <|| ("ts" := date)
+    JD.succeed EventRecord
+        <|| ("id" := JD.string)
+        <|| ("ts" := JDE.date)
         <|| ("event" := eventDecoder)
-        <|| (maybe ("max" := string))
+        <|| (maybe ("max" := JD.string))
 
 
-eventDecoder : Json.Decoder Event
+eventDecoder : JD.Decoder Event
 eventDecoder =
-    Json.succeed Event
-        <|| ("name" := string)
-        <|| (maybe ("version" := int))
-        <|| ("data" := oneOf [ mutatingEventDataDecoder, nonMutatingEventDataDecoder ])
+    JD.succeed Event
+        <|| ("name" := JD.string)
+        <|| (maybe ("version" := JD.int))
+        <|| ("data" := JD.oneOf [ mutatingEventDataDecoder, nonMutatingEventDataDecoder ])
         <|| ("metadata" := metadataDecoder)
 
 
-mutatingEventDataDecoder : Json.Decoder EventData
+{-|
+    Event encoder.
+-}
+encodeMutatingEvent : Event -> String
+encodeMutatingEvent event =
+    case event.data of
+        Mutating mutatingEventData ->
+            JE.encode 0 <|
+                JE.object
+                    [ ( "name", JE.string event.name )
+                    , ( "data", mutatingEventDataEncoder mutatingEventData )
+                    , ( "metadata", metadataEncoder event.metadata )
+                    ]
+
+        NonMutating _ ->
+            Debug.crash "Cannot encode NonMutating events"
+
+
+mutatingEventDataDecoder : JD.Decoder EventData
 mutatingEventDataDecoder =
-    (Json.succeed MutatingEventData
-        <|| ("entityId" := string)
-        <|| (maybe ("value" := string))
-        <|| (maybe ("referenceId" := string))
-        <|| (maybe ("propertyId" := string))
-        <|| (maybe ("oldPosition" := int))
-        <|| (maybe ("newPosition" := int))
+    (JD.succeed MutatingEventData
+        <|| ("entityId" := JD.string)
+        <|| (maybe ("value" := JD.string))
+        <|| (maybe ("referenceId" := JD.string))
+        <|| (maybe ("propertyId" := JD.string))
+        <|| (maybe ("oldPosition" := JD.int))
+        <|| (maybe ("newPosition" := JD.int))
     )
-        `Json.andThen` (\med -> Json.succeed <| Mutating med)
+        `JD.andThen` (\med -> JD.succeed <| Mutating med)
 
 
-nonMutatingEventDataDecoder : Json.Decoder EventData
+mutatingEventDataEncoder : MutatingEventData -> JE.Value
+mutatingEventDataEncoder mutatingEventData =
+    JE.object
+        [ ( "entityId", JE.string mutatingEventData.entityId )
+        , ( "value", encMaybe JE.string mutatingEventData.value )
+        , ( "referenceId", encMaybe JE.string mutatingEventData.referenceId )
+        , ( "propertyId", encMaybe JE.string mutatingEventData.propertyId )
+        , ( "oldPosition", encMaybe JE.int mutatingEventData.oldPosition )
+        , ( "newPosition", encMaybe JE.int mutatingEventData.newPosition )
+        ]
+
+
+nonMutatingEventDataDecoder : JD.Decoder EventData
 nonMutatingEventDataDecoder =
-    (Json.succeed NonMutatingEventData
-        <|| (maybe ("value" := string))
+    (JD.succeed NonMutatingEventData
+        <|| (maybe ("value" := JD.string))
     )
-        `Json.andThen` (\nmed -> Json.succeed <| NonMutating nmed)
+        `JD.andThen` (\nmed -> JD.succeed <| NonMutating nmed)
 
 
-metadataDecoder : Json.Decoder Metadata
+metadataDecoder : JD.Decoder Metadata
 metadataDecoder =
-    Json.succeed Metadata
-        <|| ("initiatorId" := string)
-        <|| ("command" := string)
+    JD.succeed Metadata
+        <|| ("initiatorId" := JD.string)
+        <|| ("command" := JD.string)
+
+
+metadataEncoder : Metadata -> JE.Value
+metadataEncoder metadata =
+    JE.object
+        [ ( "command", JE.string metadata.command )
+        , ( "initiatorId", JE.string metadata.initiatorId )
+        ]

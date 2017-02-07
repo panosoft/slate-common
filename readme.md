@@ -99,6 +99,27 @@ type alias Event =
 * `version` - The OPTIONAL version of the `Event` used to aid in `Entity Schema Migration`.
 * `data` - The data that's specific to the `Event` (see [EventData](#eventdata))
 
+#### eventRecordDecoder
+
+Event Record decoder.
+
+```elm
+eventRecordDecoder : JD.Decoder EventRecord
+eventRecordDecoder
+```
+This is for decoding a full Event Record when it's retrieved from the database.
+
+#### encodeMutatingEvent
+
+Event encoder.
+
+```elm
+encodeMutatingEvent : Event -> String
+encodeMutatingEvent event =
+```
+
+This is for encoding an event before it's written to the database.
+
 ### EventData
 
 It is worth noting that there are 2 types of Events in Slate, `Mutating Events` and `Non-mutating Events`.
