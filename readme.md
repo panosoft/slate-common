@@ -179,8 +179,11 @@ type alias NonMutatingEventData =
 `Metadata` contains attributes about the `EventData`.
 
 ```elm
+type alias InitiatorId =
+    String
+
 type alias Metadata =
-    { initiatorId : String
+    { initiatorId : InitiatorId
 	, command : String
     }
 ```

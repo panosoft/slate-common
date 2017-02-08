@@ -5,6 +5,7 @@ module Slate.Common.Event
         , EventData(..)
         , MutatingEventData
         , NonMutatingEventData
+        , InitiatorId
         , Metadata
         , eventRecordDecoder
         , encodeMutatingEvent
@@ -13,7 +14,7 @@ module Slate.Common.Event
 {-|
     Slate Event module
 
-@docs EventRecord , Event, EventData , MutatingEventData, NonMutatingEventData, Metadata , eventRecordDecoder, encodeMutatingEvent
+@docs EventRecord , Event, EventData , MutatingEventData, NonMutatingEventData, InitiatorId, Metadata , eventRecordDecoder, encodeMutatingEvent
 -}
 
 import Json.Encode as JE exposing (..)
@@ -75,10 +76,17 @@ type alias NonMutatingEventData =
 
 
 {-|
+    Initiator id.
+-}
+type alias InitiatorId =
+    String
+
+
+{-|
     Event metadata.
 -}
 type alias Metadata =
-    { initiatorId : String
+    { initiatorId : InitiatorId
     , command : String
     }
 
