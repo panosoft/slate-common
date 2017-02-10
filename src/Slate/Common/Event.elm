@@ -145,14 +145,15 @@ mutatingEventDataDecoder =
 
 mutatingEventDataEncoder : MutatingEventData -> JE.Value
 mutatingEventDataEncoder mutatingEventData =
-    JE.object
-        [ ( "entityId", JE.string mutatingEventData.entityId )
-        , ( "value", encMaybe JE.string mutatingEventData.value )
-        , ( "referenceId", encMaybe JE.string mutatingEventData.referenceId )
-        , ( "propertyId", encMaybe JE.string mutatingEventData.propertyId )
-        , ( "oldPosition", encMaybe JE.int mutatingEventData.oldPosition )
-        , ( "newPosition", encMaybe JE.int mutatingEventData.newPosition )
-        ]
+    JE.object <|
+        List.filter (\( _, value ) -> value /= JE.null)
+            [ ( "entityId", JE.string mutatingEventData.entityId )
+            , ( "value", encMaybe JE.string mutatingEventData.value )
+            , ( "referenceId", encMaybe JE.string mutatingEventData.referenceId )
+            , ( "propertyId", encMaybe JE.string mutatingEventData.propertyId )
+            , ( "oldPosition", encMaybe JE.int mutatingEventData.oldPosition )
+            , ( "newPosition", encMaybe JE.int mutatingEventData.newPosition )
+            ]
 
 
 nonMutatingEventDataDecoder : JD.Decoder EventData
