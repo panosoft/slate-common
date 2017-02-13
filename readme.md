@@ -770,3 +770,27 @@ EntityReference JSON decoder.
 entityReferenceDecoder : Decoder EntityReference
 entityReferenceDecoder
 ```
+
+## Slate.Common.Utils
+
+#### validateEntityEventName
+
+Validate Entity Event Name (crashes if code is wrong to prevent bad events in DB)
+
+```elm
+validateEntityEventName : EntitySchema -> Event -> Event
+validateEntityEventName schema event
+```
+
+This function is used to prevent bad events from being written to the Slate database.
+
+#### validatePropertyEventName
+
+Validate Property Event Name (crashes if code is wrong to prevent bad events in DB)
+
+```elm
+validatePropertyEventName : PropertySchema -> Event -> Event
+validatePropertyEventName schema event =
+```
+
+This function is used to prevent bad events from being written to the Slate database.
