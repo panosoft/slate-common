@@ -97,19 +97,19 @@ type alias Metadata =
 eventRecordDecoder : JD.Decoder EventRecord
 eventRecordDecoder =
     JD.succeed EventRecord
-        <|| ("id" := JD.string)
-        <|| ("ts" := JDE.date)
-        <|| ("event" := eventDecoder)
-        <|| (maybe ("max" := JD.string))
+        <|| (field "id" JD.string)
+        <|| (field "ts" JDE.date)
+        <|| (field "event" eventDecoder)
+        <|| (maybe (field "max" JD.string))
 
 
 eventDecoder : JD.Decoder Event
 eventDecoder =
     JD.succeed Event
-        <|| ("name" := JD.string)
-        <|| (maybe ("version" := JD.int))
-        <|| ("data" := JD.oneOf [ mutatingEventDataDecoder, nonMutatingEventDataDecoder ])
-        <|| ("metadata" := metadataDecoder)
+        <|| (field "name" JD.string)
+        <|| (maybe (field "version" JD.int))
+        <|| (field "data" <| JD.oneOf [ mutatingEventDataDecoder, nonMutatingEventDataDecoder ])
+        <|| (field "metadata" metadataDecoder)
 
 
 {-|
@@ -133,14 +133,14 @@ encodeMutatingEvent event =
 mutatingEventDataDecoder : JD.Decoder EventData
 mutatingEventDataDecoder =
     (JD.succeed MutatingEventData
-        <|| ("entityId" := JD.string)
-        <|| (maybe ("value" := JD.string))
-        <|| (maybe ("referenceId" := JD.string))
-        <|| (maybe ("propertyId" := JD.string))
-        <|| (maybe ("oldPosition" := JD.int))
-        <|| (maybe ("newPosition" := JD.int))
+        <|| (field "entityId" JD.string)
+        <|| (maybe (field "value" JD.string))
+        <|| (maybe (field "referenceId" JD.string))
+        <|| (maybe (field "propertyId" JD.string))
+        <|| (maybe (field "oldPosition" JD.int))
+        <|| (maybe (field "newPosition" JD.int))
     )
-        `JD.andThen` (\med -> JD.succeed <| Mutating med)
+        |> JD.andThen (\med -> JD.succeed <| Mutating med)
 
 
 mutatingEventDataEncoder : MutatingEventData -> JE.Value
@@ -159,16 +159,16 @@ mutatingEventDataEncoder mutatingEventData =
 nonMutatingEventDataDecoder : JD.Decoder EventData
 nonMutatingEventDataDecoder =
     (JD.succeed NonMutatingEventData
-        <|| (maybe ("value" := JD.string))
+        <|| (maybe (field "value" JD.string))
     )
-        `JD.andThen` (\nmed -> JD.succeed <| NonMutating nmed)
+        |> JD.andThen (\nmed -> JD.succeed <| NonMutating nmed)
 
 
 metadataDecoder : JD.Decoder Metadata
 metadataDecoder =
     JD.succeed Metadata
-        <|| ("initiatorId" := JD.string)
-        <|| ("command" := JD.string)
+        <|| (field "initiatorId" JD.string)
+        <|| (field "command" JD.string)
 
 
 metadataEncoder : Metadata -> JE.Value

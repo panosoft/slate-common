@@ -30,8 +30,9 @@ module Slate.Common.Mutation
 -}
 
 import String exposing (..)
-import Date exposing (..)
+import Date exposing (Date, fromString)
 import Dict exposing (Dict)
+import Tuple exposing (first, second)
 import Maybe.Extra as MaybeE exposing (isNothing)
 import Slate.Common.Entity exposing (..)
 import Slate.Common.Event exposing (..)
@@ -343,7 +344,7 @@ positionPropertyList maybeList updater event entireEntity =
                     newPosition >= length - 1 || oldPosition >= length
 
                 errors =
-                    (List.map (((++) " is missing") << snd) <| List.filter (isNothing << fst) [ ( mutatingEventData.oldPosition, "Old Position" ), ( mutatingEventData.newPosition, "New Position" ) ])
+                    (List.map (((++) " is missing") << second) <| List.filter (isNothing << first) [ ( mutatingEventData.oldPosition, "Old Position" ), ( mutatingEventData.newPosition, "New Position" ) ])
                         |> List.append (invalidMove ? ( [ "Positions are out of bounds" ++ (toString event) ], [] ))
 
                 ( oldPosition, newPosition ) =

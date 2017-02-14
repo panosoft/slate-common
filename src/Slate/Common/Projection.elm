@@ -18,6 +18,7 @@ module Slate.Common.Projection
 -}
 
 import Dict exposing (Dict)
+import Tuple exposing (first, second)
 import Result.Extra as ResultE exposing (isOk)
 import Utils.Ops exposing (..)
 import Utils.Dict as DictU
@@ -46,8 +47,8 @@ getValidEntity errorChecks entity =
     let
         errors =
             errorChecks
-                |> List.filter fst
-                |> List.map snd
+                |> List.filter first
+                |> List.map second
     in
         (errors == []) ? ( Ok entity, Err errors )
 
