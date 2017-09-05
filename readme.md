@@ -1,3 +1,6 @@
+# DEPRECATED - Please see [elm-slate/common](https://github.com/elm-slate/common)
+
+
 # Slate Common Modules
 
 > Common Slate modules that are used by multiple Slate libraries and Slate Apps.
